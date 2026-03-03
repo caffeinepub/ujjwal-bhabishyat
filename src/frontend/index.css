@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/PlusJakartaSans-VariableFont_wght.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cabinet Grotesk";
+  src: url("/assets/fonts/CabinetGrotesk-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.625rem;
+
+    /* Admin dashboard: clean navy-slate with electric indigo accents */
+    --background: 0.97 0.008 250;
+    --foreground: 0.18 0.025 255;
+    --card: 1 0 0;
+    --card-foreground: 0.18 0.025 255;
+    --popover: 1 0 0;
+    --popover-foreground: 0.18 0.025 255;
+    --primary: 0.45 0.2 265;
+    --primary-foreground: 0.99 0 0;
+    --secondary: 0.93 0.015 255;
+    --secondary-foreground: 0.3 0.04 265;
+    --muted: 0.93 0.012 250;
+    --muted-foreground: 0.5 0.025 255;
+    --accent: 0.93 0.015 255;
+    --accent-foreground: 0.3 0.04 265;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+    --border: 0.88 0.015 255;
+    --input: 0.88 0.015 255;
+    --ring: 0.45 0.2 265;
+
+    /* Status colors */
+    --status-paid: 0.55 0.15 145;
+    --status-paid-bg: 0.95 0.05 145;
+    --status-unpaid: 0.55 0.22 25;
+    --status-unpaid-bg: 0.97 0.06 25;
+    --status-pending: 0.65 0.15 75;
+    --status-pending-bg: 0.97 0.06 75;
+
+    /* Stat card accents */
+    --stat-blue: 0.48 0.18 245;
+    --stat-green: 0.52 0.17 145;
+    --stat-purple: 0.45 0.2 265;
+    --stat-orange: 0.6 0.2 45;
+
+    --chart-1: 0.646 0.222 41.116;
+    --chart-2: 0.6 0.118 184.704;
+    --chart-3: 0.398 0.07 227.392;
+    --chart-4: 0.828 0.189 84.429;
+    --chart-5: 0.769 0.188 70.08;
+    --sidebar: 0.18 0.04 265;
+    --sidebar-foreground: 0.9 0.01 250;
+    --sidebar-primary: 0.65 0.18 265;
+    --sidebar-primary-foreground: 0.99 0 0;
+    --sidebar-accent: 0.25 0.05 265;
+    --sidebar-accent-foreground: 0.9 0.01 250;
+    --sidebar-border: 0.28 0.05 265;
+    --sidebar-ring: 0.65 0.18 265;
+  }
+
+  .dark {
+    --background: 0.13 0.025 265;
+    --foreground: 0.93 0.01 250;
+    --card: 0.18 0.03 265;
+    --card-foreground: 0.93 0.01 250;
+    --popover: 0.22 0.035 265;
+    --popover-foreground: 0.93 0.01 250;
+    --primary: 0.65 0.2 265;
+    --primary-foreground: 0.99 0 0;
+    --secondary: 0.25 0.04 265;
+    --secondary-foreground: 0.88 0.01 250;
+    --muted: 0.25 0.04 265;
+    --muted-foreground: 0.6 0.02 255;
+    --accent: 0.3 0.05 265;
+    --accent-foreground: 0.93 0.01 250;
+    --destructive: 0.704 0.191 22.216;
+    --destructive-foreground: 0.205 0 0;
+    --border: 1 0 0 / 10%;
+    --input: 1 0 0 / 15%;
+    --ring: 0.65 0.2 265;
+    --sidebar: 0.12 0.025 265;
+    --sidebar-foreground: 0.9 0.01 250;
+    --sidebar-primary: 0.65 0.18 265;
+    --sidebar-primary-foreground: 0.99 0 0;
+    --sidebar-accent: 0.2 0.04 265;
+    --sidebar-accent-foreground: 0.9 0.01 250;
+    --sidebar-border: 1 0 0 / 10%;
+    --sidebar-ring: 0.65 0.18 265;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Plus Jakarta Sans", sans-serif;
+  }
+}
+
+/* PhonePe payment modal gradient */
+.phonepe-gradient {
+  background: linear-gradient(135deg, oklch(0.38 0.22 285) 0%, oklch(0.28 0.2 270) 100%);
+}
+
+/* Animated green tick */
+@keyframes draw-check {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.check-animate {
+  animation: pop-in 0.5s ease-out forwards;
+}
+
+.check-path-animate {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: draw-check 0.6s ease-out 0.3s forwards;
+}
+
+/* Sidebar active state */
+.sidebar-active {
+  background: oklch(var(--sidebar-accent));
+  color: oklch(var(--sidebar-primary));
+}
+
+/* Table row hover */
+.table-row-hover:hover {
+  background: oklch(0.97 0.008 250);
+}
+
+/* Status badges */
+.badge-paid {
+  background: oklch(var(--status-paid-bg));
+  color: oklch(var(--status-paid));
+  border: 1px solid oklch(var(--status-paid) / 0.3);
+}
+
+.badge-unpaid {
+  background: oklch(var(--status-unpaid-bg));
+  color: oklch(var(--status-unpaid));
+  border: 1px solid oklch(var(--status-unpaid) / 0.3);
+}
+
+.badge-pending {
+  background: oklch(var(--status-pending-bg));
+  color: oklch(var(--status-pending));
+  border: 1px solid oklch(var(--status-pending) / 0.3);
+}
