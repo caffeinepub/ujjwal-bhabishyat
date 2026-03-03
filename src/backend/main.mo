@@ -8,15 +8,10 @@ import Runtime "mo:core/Runtime";
 import Order "mo:core/Order";
 import List "mo:core/List";
 import Int "mo:core/Int";
-
 import Principal "mo:core/Principal";
-
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
-import Migration "migration";
 
-// Specify data migration function in with-clause
-(with migration = Migration.run)
 actor {
   // Initialize access control system
   let accessControlState = AccessControl.initState();
@@ -171,11 +166,11 @@ actor {
     };
   };
 
-  public shared ({ caller }) func loginUser(email : Text, phone : Text) : async ?User {
+  public shared ({ caller }) func loginUser(nameOrEmail : Text, phone : Text) : async ?User {
     // No authorization check - login is open to guests
     let foundUser = users.values().toArray().find(
       func(user) {
-        user.email == email and user.phone == phone;
+        (user.email == nameOrEmail or user.name == nameOrEmail) and user.phone == phone
       }
     );
 
@@ -186,8 +181,8 @@ actor {
   };
 
   public query ({ caller }) func getUser(userId : Text) : async ?User {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view user details");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view user details");
     };
     users.get(userId);
   };
@@ -199,24 +194,22 @@ actor {
     users.values().toArray().sort();
   };
 
-  public shared ({ caller }) func setupAdmin(name : Text, email : Text, phone : Text) : async Text {
-    // Check if admin already exists (fix: no 'exists' method on [User], use 'find' instead and check for null)
+  public shared ({ caller }) func setupAdmin(name : Text, _email : Text, phone : Text) : async Text {
+    // No authorization check - setupAdmin is open to guests (idempotent)
+    // Check if admin already exists (find will return null if not found)
     let adminExists = users.values().toArray().find(func(user) { user.role == #admin }) != null;
 
     if (adminExists) {
-      // Idempotent: return existing admin ID
       switch (users.values().toArray().find(func(user) { user.role == #admin })) {
         case (null) { Runtime.trap("Admin user not found after check") };
         case (?adminUser) { adminUser.userId };
       };
     } else {
-      // Only allow setup if no admin exists (first-time setup)
-      // This is open for initial setup, but becomes idempotent after first admin is created
       let adminId = nextUserId();
       let newAdmin : User = {
         userId = adminId;
         name;
-        email;
+        email = name;
         phone;
         role = #admin;
         createdAt = Time.now();

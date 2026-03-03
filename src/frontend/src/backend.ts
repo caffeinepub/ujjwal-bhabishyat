@@ -177,12 +177,12 @@ export interface backendInterface {
     listStudentsByStatus(status: PaymentStatus): Promise<Array<Student>>;
     listTeachers(): Promise<Array<Teacher>>;
     listUsers(): Promise<Array<User>>;
-    loginUser(email: string, phone: string): Promise<User | null>;
+    loginUser(nameOrEmail: string, phone: string): Promise<User | null>;
     recordPayment(payment: PaymentRecord): Promise<void>;
     registerUser(name: string, email: string, phone: string): Promise<string>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     searchStudents(searchTerm: string): Promise<Array<Student>>;
-    setupAdmin(name: string, email: string, phone: string): Promise<string>;
+    setupAdmin(name: string, _email: string, phone: string): Promise<string>;
     updateStudent(id: string, updatedStudent: Student): Promise<void>;
     updateTeacher(id: string, updatedTeacher: Teacher): Promise<void>;
 }

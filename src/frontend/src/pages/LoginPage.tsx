@@ -2,19 +2,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  BookOpen,
-  CheckCircle2,
-  Loader2,
-  Mail,
-  Phone,
-  User,
-} from "lucide-react";
+import { BookOpen, CheckCircle2, Loader2, Phone, User } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import type { Student } from "../backend.d";
+import { PaymentStatus } from "../backend.d";
 import { useActor } from "../hooks/useActor";
 import { loginWithUser } from "../utils/auth";
+
+const ADMIN_PHONE = "+919064934476";
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -26,18 +23,41 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const { actor } = useActor();
   const [activeTab, setActiveTab] = useState<ActiveTab>("login");
 
-  // Login state
-  const [loginEmail, setLoginEmail] = useState("");
+  // Login state — নাম + ফোন নম্বর
+  const [loginName, setLoginName] = useState("");
   const [loginPhone, setLoginPhone] = useState("");
   const [isLoginLoading, setIsLoginLoading] = useState(false);
 
   // Register state
   const [regName, setRegName] = useState("");
-  const [regEmail, setRegEmail] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [isRegLoading, setIsRegLoading] = useState(false);
   const [newUserId, setNewUserId] = useState<string | null>(null);
 
+  // Seed admin once — email ফিল্ডে name পাঠাচ্ছি যাতে loginUser(name, phone) দিয়ে মিলানো যায়
+  const seedAdmin = async () => {
+    try {
+      await actor!.setupAdmin(
+        "Dipak De",
+        "Dipak De", // email ফিল্ডে name রাখছি
+        ADMIN_PHONE,
+      );
+    } catch {
+      // Idempotent
+    }
+  };
+
+  // ফোন নম্বর নর্মালাইজ: +91 ছাড়া 10 ডিজিট দিলে +91 যোগ করো
+  const normalizePhone = (phone: string): string => {
+    const p = phone.trim();
+    if (p.startsWith("+")) return p;
+    if (p.length === 10) return `+91${p}`;
+    if (p.startsWith("91") && p.length === 12) return `+${p}`;
+    return p;
+  };
+
+  // লগইন: নাম + ফোন নম্বর দিয়ে
+  // ব্যাকেন্ড loginUser(email, phone) — email-এর জায়গায় name পাঠাচ্ছি
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!actor) {
@@ -46,13 +66,19 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     }
     setIsLoginLoading(true);
     try {
-      const user = await actor.loginUser(loginEmail.trim(), loginPhone.trim());
+      await seedAdmin();
+      const trimName = loginName.trim();
+      const trimPhone = normalizePhone(loginPhone);
+      // loginUser(email=name, phone) — name দিয়ে email ফিল্ড মিলাচ্ছি
+      const user = await actor.loginUser(trimName, trimPhone);
       if (user) {
         loginWithUser(user);
         toast.success(`স্বাগতম, ${user.name}!`);
         onLogin();
       } else {
-        toast.error("ইমেইল বা ফোন নম্বর মিলছে না। আবার চেষ্টা করুন।");
+        toast.error(
+          "নাম বা ফোন নম্বর মিলছে না। প্রথমে 'নিবন্ধন' ট্যাবে গিয়ে নিবন্ধন করুন।",
+        );
       }
     } catch {
       toast.error("লগইন ব্যর্থ হয়েছে। পরে আবার চেষ্টা করুন।");
@@ -69,41 +95,79 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     }
     setIsRegLoading(true);
     try {
-      // Seed admin silently
-      try {
-        await actor.setupAdmin(
-          "Dipak De",
-          "dipakde@ujjwalbhabishyat.com",
-          "+919064934476",
-        );
-      } catch {
-        // Idempotent — ignore errors
+      const trimName = regName.trim();
+      const trimPhone = normalizePhone(regPhone);
+
+      // অ্যাডমিন ফোন দিলে seedAdmin করো, তারপর সরাসরি লগইনে যাও
+      if (trimPhone === ADMIN_PHONE) {
+        await seedAdmin();
+        // admin হিসেবে সরাসরি লগইন করানোর জন্য User ID দেখাও
+        setNewUserId("ADMIN");
+        toast.success("অ্যাডমিন অ্যাকাউন্ট প্রস্তুত!");
+        setTimeout(() => {
+          setNewUserId(null);
+          setActiveTab("login");
+          setLoginName(trimName);
+          setLoginPhone(trimPhone);
+        }, 3000);
+        return;
       }
 
-      const userId = await actor.registerUser(
-        regName.trim(),
-        regEmail.trim(),
-        regPhone.trim(),
-      );
+      // সাধারণ ব্যবহারকারী নিবন্ধন
+      let userId: string;
+      try {
+        userId = await actor.registerUser(trimName, trimName, trimPhone);
+      } catch (err) {
+        const msg = String(err);
+        if (
+          msg.toLowerCase().includes("already") ||
+          msg.toLowerCase().includes("exist") ||
+          msg.toLowerCase().includes("phone")
+        ) {
+          // ইতিমধ্যে নিবন্ধিত -- লগইন ট্যাবে পাঠাও
+          toast.info("এই ফোন নম্বর আগেই নিবন্ধিত আছে। সরাসরি লগইন করুন।");
+          setActiveTab("login");
+          setLoginName(trimName);
+          setLoginPhone(trimPhone);
+          return;
+        }
+        throw err;
+      }
+
       setNewUserId(userId);
       toast.success("নিবন্ধন সফল হয়েছে!");
-      // Auto-switch to login after 3s
+
+      // ছাত্র তালিকায় স্বয়ংক্রিয়ভাবে যোগ করো
+      try {
+        const now = BigInt(Date.now()) * 1_000_000n;
+        const studentData: Student = {
+          id: crypto.randomUUID(),
+          name: trimName,
+          className: "",
+          parentName: "",
+          parentPhone: trimPhone,
+          feeAmount: 0n,
+          paymentStatus: PaymentStatus.Unpaid,
+          enrolledDate: now,
+          studentEmail: "",
+          guardianName: "",
+          guardianEmail: "",
+        };
+        await actor.addStudent(studentData);
+      } catch {
+        // ছাত্র যোগ ব্যর্থ হলেও নিবন্ধন সফল
+      }
+
+      // ৩ সেকেন্ড পরে লগইন ট্যাবে যাও
       setTimeout(() => {
         setNewUserId(null);
         setActiveTab("login");
-        setLoginEmail(regEmail.trim());
-        setLoginPhone(regPhone.trim());
+        setLoginName(trimName);
+        setLoginPhone(trimPhone);
       }, 3000);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (
-        msg.toLowerCase().includes("already") ||
-        msg.toLowerCase().includes("exist")
-      ) {
-        toast.error("এই ইমেইল বা ফোন নম্বর আগেই নিবন্ধিত আছে।");
-      } else {
-        toast.error("নিবন্ধন ব্যর্থ হয়েছে। পরে আবার চেষ্টা করুন।");
-      }
+      console.error("Registration error:", err);
+      toast.error("নিবন্ধন ব্যর্থ হয়েছে। নাম ও ফোন নম্বর ঠিকমতো দিয়ে আবার চেষ্টা করুন।");
     } finally {
       setIsRegLoading(false);
     }
@@ -154,6 +218,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               Ujjwal Bhabishyat
             </h1>
             <p className="text-sm text-white/60 mt-1">কোচিং ম্যানেজমেন্ট সিস্টেম</p>
+            <p className="text-xs text-white/40 mt-1">
+              প্রথমে নিবন্ধন করুন, তারপর লগইন করুন
+            </p>
           </div>
 
           {/* Tabs */}
@@ -186,21 +253,21 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label
-                    htmlFor="login-email"
+                    htmlFor="login-name"
                     className="text-sm font-medium text-foreground/80"
                   >
-                    ইমেইল আইডি
+                    আপনার নাম
                   </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      id="login-email"
-                      data-ocid="login.email_input"
-                      type="email"
-                      placeholder="example@email.com"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      autoComplete="email"
+                      id="login-name"
+                      data-ocid="login.name_input"
+                      type="text"
+                      placeholder="পুরো নাম লিখুন"
+                      value={loginName}
+                      onChange={(e) => setLoginName(e.target.value)}
+                      autoComplete="name"
                       required
                       className="h-11 pl-10"
                     />
@@ -220,7 +287,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                       id="login-phone"
                       data-ocid="login.phone_input"
                       type="tel"
-                      placeholder="+91XXXXXXXXXX"
+                      placeholder="+91XXXXXXXXXX বা 10 ডিজিট"
                       value={loginPhone}
                       onChange={(e) => setLoginPhone(e.target.value)}
                       autoComplete="tel"
@@ -251,7 +318,43 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 </Button>
               </form>
 
-              <p className="text-xs text-center text-muted-foreground mt-4">
+              <div
+                className="mt-4 rounded-lg px-3 py-2.5"
+                style={{
+                  background: "oklch(0.55 0.17 35 / 0.08)",
+                  border: "1px solid oklch(0.55 0.17 35 / 0.2)",
+                }}
+              >
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  <span
+                    className="font-semibold"
+                    style={{ color: "oklch(0.55 0.17 35)" }}
+                  >
+                    ⚠ প্রথমবার?
+                  </span>{" "}
+                  আগে <strong>"নিবন্ধন"</strong> ট্যাবে গিয়ে নিজের নাম ও ফোন নম্বর
+                  দিয়ে অ্যাকাউন্ট তৈরি করুন। তারপর এখানে লগইন করুন।
+                </p>
+              </div>
+              <div
+                className="mt-2 rounded-lg px-3 py-2.5"
+                style={{
+                  background: "oklch(0.45 0.2 265 / 0.07)",
+                  border: "1px solid oklch(0.45 0.2 265 / 0.15)",
+                }}
+              >
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  শুধুমাত্র{" "}
+                  <span
+                    className="font-semibold"
+                    style={{ color: "oklch(0.55 0.18 265)" }}
+                  >
+                    দীপক দে
+                  </span>{" "}
+                  (অ্যাডমিন) সব ফিচার ব্যবহার করতে পারবেন। বাকি ছাত্ররা ড্যাশবোর্ড দেখতে পাবে।
+                </p>
+              </div>
+              <p className="text-xs text-center text-muted-foreground mt-3">
                 অ্যাকাউন্ট নেই?{" "}
                 <button
                   type="button"
@@ -292,22 +395,26 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                         আপনার User ID তৈরি হয়েছে
                       </p>
                     </div>
-                    <div
-                      className="w-full rounded-xl border-2 px-5 py-4"
-                      style={{
-                        background: "oklch(0.45 0.2 265 / 0.08)",
-                        borderColor: "oklch(0.45 0.2 265 / 0.3)",
-                      }}
-                    >
-                      <p className="text-xs text-muted-foreground mb-1">
-                        আপনার User ID:
-                      </p>
-                      <p className="font-mono font-bold text-xl text-foreground tracking-wider">
-                        {newUserId}
-                      </p>
-                    </div>
+                    {newUserId !== "ADMIN" && (
+                      <div
+                        className="w-full rounded-xl border-2 px-5 py-4"
+                        style={{
+                          background: "oklch(0.45 0.2 265 / 0.08)",
+                          borderColor: "oklch(0.45 0.2 265 / 0.3)",
+                        }}
+                      >
+                        <p className="text-xs text-muted-foreground mb-1">
+                          আপনার User ID:
+                        </p>
+                        <p className="font-mono font-bold text-xl text-foreground tracking-wider">
+                          {newUserId}
+                        </p>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      ⚠️ এটি লিখে রাখুন — লগইন করতে লাগবে।
+                      {newUserId === "ADMIN"
+                        ? "অ্যাডমিন অ্যাকাউন্ট প্রস্তুত। এখন লগইন করুন।"
+                        : "⚠️ এটি লিখে রাখুন — লগইন করতে লাগবে।"}
                       <br />
                       <span style={{ color: "oklch(0.52 0.17 145)" }}>
                         ৩ সেকেন্ড পরে লগইন পেজে যাচ্ছেন...
@@ -348,29 +455,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
                     <div className="space-y-1.5">
                       <Label
-                        htmlFor="reg-email"
-                        className="text-sm font-medium text-foreground/80"
-                      >
-                        ইমেইল আইডি
-                      </Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="reg-email"
-                          data-ocid="register.email_input"
-                          type="email"
-                          placeholder="example@email.com"
-                          value={regEmail}
-                          onChange={(e) => setRegEmail(e.target.value)}
-                          autoComplete="email"
-                          required
-                          className="h-11 pl-10"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label
                         htmlFor="reg-phone"
                         className="text-sm font-medium text-foreground/80"
                       >
@@ -382,7 +466,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                           id="reg-phone"
                           data-ocid="register.phone_input"
                           type="tel"
-                          placeholder="+91XXXXXXXXXX"
+                          placeholder="+91XXXXXXXXXX বা 10 ডিজিট"
                           value={regPhone}
                           onChange={(e) => setRegPhone(e.target.value)}
                           autoComplete="tel"
@@ -416,16 +500,36 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </AnimatePresence>
 
               {!newUserId && (
-                <p className="text-xs text-center text-muted-foreground mt-4">
-                  আগেই অ্যাকাউন্ট আছে?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("login")}
-                    className="text-primary underline hover:no-underline"
+                <>
+                  <div
+                    className="mt-3 rounded-lg px-3 py-2.5"
+                    style={{
+                      background: "oklch(0.52 0.17 145 / 0.07)",
+                      border: "1px solid oklch(0.52 0.17 145 / 0.2)",
+                    }}
                   >
-                    লগইন করুন
-                  </button>
-                </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      <span
+                        className="font-semibold"
+                        style={{ color: "oklch(0.52 0.17 145)" }}
+                      >
+                        কিভাবে করবেন:
+                      </span>{" "}
+                      নিজের পুরো নাম ও ফোন নম্বর (+91XXXXXXXXXX বা শুধু 10 ডিজিট) দিয়ে
+                      নিবন্ধন করুন। নিবন্ধনের পরে সেই একই নাম ও ফোন দিয়ে লগইন করুন।
+                    </p>
+                  </div>
+                  <p className="text-xs text-center text-muted-foreground mt-3">
+                    আগেই অ্যাকাউন্ট আছে?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("login")}
+                      className="text-primary underline hover:no-underline"
+                    >
+                      লগইন করুন
+                    </button>
+                  </p>
+                </>
               )}
             </TabsContent>
           </Tabs>
