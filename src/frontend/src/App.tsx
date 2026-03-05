@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import Layout from "./components/Layout";
 import ChatPage from "./pages/ChatPage";
@@ -14,6 +15,7 @@ type Page = "dashboard" | "students" | "teachers" | "payments" | "chat";
 export default function App() {
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const [currentPage, setCurrentPage] = useState<Page>("dashboard");
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     setAuthenticated(isLoggedIn());
@@ -29,6 +31,9 @@ export default function App() {
   const handleLogin = () => {
     setAuthenticated(true);
     setCurrentPage("dashboard");
+    // Refresh all queries so dashboard stats (student count, etc.) update immediately
+    queryClient.invalidateQueries({ queryKey: ["students"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
   const handleLogout = () => {
